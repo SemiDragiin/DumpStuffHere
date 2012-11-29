@@ -43,11 +43,23 @@
 //                  result is expected in index 0 of g_idata
 //! @param n        input number of elements to scan from input data
 // **===------------------------------------------------------------------===**
-__global__ void reduction(float *g_data, int n)
-{
+__global__ void reduction(float *g_data, int n){
+	// Performs reduction addition in log2(num_elements/2)+1 syncs
+	int k=1;
+	int id=threadIdx.x;
 
+	// Load array into local shared memory, each thread responsible for two
+	// values it computes first
+	extern __shared__ float* s_data;
+	s_data[id*2]=g_data[id*2];
+	s_data[id*2+1]=g_data[id*2+1];
 
-
+	while(k<=n){
+		if(id<n/k){s_data[k*id*2] = s_data[k*id*2] + s_data[k*(id*2+1)];}
+		__syncthreads();
+		k=k*2;
+	}
+	if(id==0){g_data[0] = s_data[0];}
 }
 
 #endif // #ifndef _SCAN_NAIVE_KERNEL_H_
