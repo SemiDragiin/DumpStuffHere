@@ -44,22 +44,30 @@
 //! @param n        input number of elements to scan from input data
 // **===------------------------------------------------------------------===**
 __global__ void reduction(float *g_data, int n){
-	// Performs reduction addition in log2(num_elements/2)+1 syncs
-	int k=1;
-	int id=threadIdx.x;
-
-	// Load array into local shared memory, each thread responsible for two
-	// values it computes first
-	extern __shared__ float* s_data;
-	s_data[id*2]=g_data[id*2];
-	s_data[id*2+1]=g_data[id*2+1];
-
-	while(k<=n){
-		if(id<n/k){s_data[k*id*2] = s_data[k*id*2] + s_data[k*(id*2+1)];}
-		__syncthreads();
-		k=k*2;
+	//New edits
+	//Performs reduction addition in log2(NUM_ELEMENTS/2)+1 syncs
+	int stride;
+	//Define shared memory
+	__shared__ float test[NUM_ELEMENTS];
+	//Load shared memory
+	test[threadIdx.x]=g_data[threadIdx.x];
+	if(threadIdx.x+blockDim.x<n){
+		test[threadIdx.x+blockDim.x]=g_data[threadIdx.x+blockDim.x];
 	}
-	if(id==0){g_data[0] = s_data[0];}
+	__syncthreads();
+	//Sum reduction from shared memory
+	for(stride=NUM_ELEMENTS/2;stride>=1;stride/=2){
+		if(threadIdx.x<stride){
+			test[threadIdx.x]+=test[threadIdx.x+stride];
+			__syncthreads();
+		}
+	}
+	//Store results back to global memory
+	if(threadIdx.x==0){
+		g_data[0]=test[0];
+	}
+	
+	#endif
 }
 
 #endif // #ifndef _SCAN_NAIVE_KERNEL_H_
